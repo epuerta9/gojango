@@ -1,0 +1,35 @@
+{{{{ extends "base.html" }}}}
+
+{{{{ block "content" }}}}
+<h1>Welcome to {{.AppName}}</h1>
+<p>Your Gojango application is running successfully!</p>
+
+{{{{ if .Apps }}}}
+<div class="apps">
+    <h2>Registered Apps ({{{{ len .Apps }}}})</h2>
+    <ul>
+        {{{{ range .Apps }}}}
+        <li><a href="/{{{{ . }}}}/">{{{{ . | title }}}}</a></li>
+        {{{{ end }}}}
+    </ul>
+</div>
+{{{{ else }}}}
+<p>No apps registered yet. Create your first app with:</p>
+<pre><code>gojango startapp myapp</code></pre>
+{{{{ end }}}}
+
+<div class="info">
+    <h3>What's Next?</h3>
+    <ul>
+        <li>Create apps with <code>gojango startapp appname</code></li>
+        <li>Define models in your app's schema directory</li>
+        <li>Add views and templates</li>
+        <li>Configure routing in your app</li>
+    </ul>
+</div>
+
+<div class="debug-info" style="margin-top: 2rem; font-size: 0.9em; color: #666;">
+    <p>{{{{ .RouteCount }}}} total routes registered</p>
+    <p><a href="/health">Health Check</a></p>
+</div>
+{{{{ end }}}}

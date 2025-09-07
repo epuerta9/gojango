@@ -7,8 +7,14 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 	"time"
+
+	"github.com/epuerta9/gojango/pkg/gojango/middleware"
+	"github.com/epuerta9/gojango/pkg/gojango/routing"
+	"github.com/epuerta9/gojango/pkg/gojango/templates"
+	"github.com/gin-gonic/gin"
 )
 
 // Application represents the main Gojango application instance.
@@ -17,7 +23,10 @@ type Application struct {
 	name     string
 	settings Settings
 	registry *Registry
+	router   *routing.Router
+	templates *templates.Engine
 	server   *http.Server
+	middleware *middleware.Registry
 	
 	// Options
 	debug bool
@@ -48,18 +57,43 @@ func WithPort(port string) Option {
 	}
 }
 
+// WithMiddleware sets a custom middleware registry
+func WithMiddleware(middlewareRegistry *middleware.Registry) Option {
+	return func(app *Application) {
+		app.middleware = middlewareRegistry
+	}
+}
+
 // New creates a new Gojango application
 func New(opts ...Option) *Application {
 	app := &Application{
-		name:     "gojango-app",
-		registry: GetRegistry(),
-		debug:    false,
-		port:     "8080",
+		name:      "gojango-app",
+		registry:  GetRegistry(),
+		router:    routing.NewRouter(),
+		templates: templates.NewEngine(),
+		debug:     false,
+		port:      "8080",
 	}
 	
 	// Apply options
 	for _, opt := range opts {
 		opt(app)
+	}
+	
+	// Set default middleware if none provided
+	if app.middleware == nil {
+		if app.debug {
+			app.middleware = middleware.GetDevelopment()
+		} else {
+			app.middleware = middleware.GetDefaults()
+		}
+	}
+	
+	// Configure Gin based on debug mode
+	if app.debug {
+		gin.SetMode(gin.DebugMode)
+	} else {
+		gin.SetMode(gin.ReleaseMode)
 	}
 	
 	return app
@@ -71,6 +105,16 @@ func (app *Application) LoadSettings(settings Settings) error {
 	return nil
 }
 
+// AddMiddleware adds a middleware function to the application
+func (app *Application) AddMiddleware(middleware middleware.MiddlewareFunc) {
+	app.middleware.Add(middleware)
+}
+
+// AddGinMiddleware adds a Gin HandlerFunc directly as middleware
+func (app *Application) AddGinMiddleware(handler gin.HandlerFunc) {
+	app.middleware.AddGin(handler)
+}
+
 // Initialize initializes all registered apps
 func (app *Application) Initialize(ctx context.Context) error {
 	if app.settings == nil {
@@ -79,9 +123,24 @@ func (app *Application) Initialize(ctx context.Context) error {
 	
 	log.Printf("Initializing Gojango application: %s", app.name)
 	
+	// Setup middleware
+	app.setupMiddleware()
+	
+	// Setup template functions (needs to be before app initialization)
+	app.templates.AddFuncs(app.router.TemplateFuncs())
+	
 	// Initialize the registry with all registered apps
 	if err := app.registry.Initialize(ctx, app.settings); err != nil {
 		return fmt.Errorf("failed to initialize app registry: %w", err)
+	}
+	
+	// Setup routing and templates after apps are initialized
+	if err := app.setupRouting(); err != nil {
+		return fmt.Errorf("failed to setup routing: %w", err)
+	}
+	
+	if err := app.setupTemplates(); err != nil {
+		return fmt.Errorf("failed to setup templates: %w", err)
 	}
 	
 	log.Printf("Successfully initialized %d apps", len(app.registry.GetApps()))
@@ -89,51 +148,157 @@ func (app *Application) Initialize(ctx context.Context) error {
 	return nil
 }
 
-// setupHTTPServer sets up the HTTP server with all app routes
-func (app *Application) setupHTTPServer() error {
-	// For now, create a basic HTTP server
-	// In Phase 2, we'll integrate Gin properly
+// setupMiddleware configures the middleware stack
+func (app *Application) setupMiddleware() {
+	// Apply middleware from the registry
+	app.middleware.Apply(app.router.GetEngine())
+}
+
+// setupRouting registers routes from all apps
+func (app *Application) setupRouting() error {
+	// Add built-in routes first
+	app.addBuiltinRoutes()
 	
-	mux := http.NewServeMux()
-	
-	// Add a health check endpoint
-	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		fmt.Fprintf(w, `{"status": "ok", "app": "%s"}`, app.name)
-	})
-	
-	// Add a root endpoint
-	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		apps := app.registry.GetAppNames()
-		
-		w.Header().Set("Content-Type", "text/html")
-		fmt.Fprintf(w, "<html><head><title>%s</title></head><body>", app.name)
-		fmt.Fprintf(w, "<h1>Welcome to %s</h1>", app.name)
-		fmt.Fprintf(w, "<p>Gojango application is running!</p>")
-		fmt.Fprintf(w, "<h2>Registered Apps (%d)</h2><ul>", len(apps))
-		
-		for _, appName := range apps {
-			fmt.Fprintf(w, "<li>%s</li>", appName)
-		}
-		
-		fmt.Fprintf(w, "</ul>")
-		fmt.Fprintf(w, "<p><a href=\"/health\">Health Check</a></p>")
-		fmt.Fprintf(w, "</body></html>")
-	})
-	
-	// TODO: In Phase 2, we'll add proper route registration from apps
-	// For now, just log registered routes
+	// Register routes from all apps
 	allRoutes := app.registry.GetAllRoutes()
 	for appName, routes := range allRoutes {
-		log.Printf("App '%s' registered %d routes", appName, len(routes))
-		for _, route := range routes {
-			log.Printf("  %s %s -> %s", route.Method, route.Path, route.Name)
+		if len(routes) > 0 {
+			// Convert gojango.Route to routing.Route
+			routingRoutes := make([]routing.Route, len(routes))
+			for i, route := range routes {
+				routingRoutes[i] = routing.Route{
+					Method:  route.Method,
+					Path:    route.Path,
+					Handler: route.Handler,
+					Name:    route.Name,
+				}
+			}
+			
+			err := app.router.RegisterRoutes(appName, routingRoutes)
+			if err != nil {
+				return fmt.Errorf("failed to register routes for app '%s': %w", appName, err)
+			}
+			
+			log.Printf("App '%s' registered %d routes", appName, len(routes))
+			for _, route := range routes {
+				log.Printf("  %s /%s%s -> %s:%s", route.Method, appName, route.Path, appName, route.Name)
+			}
 		}
 	}
 	
+	// Setup static file serving
+	app.setupStaticFiles()
+	
+	return nil
+}
+
+// setupTemplates loads templates from all apps
+func (app *Application) setupTemplates() error {
+	// Load global templates if they exist
+	if err := app.templates.LoadGlobalTemplates("templates"); err != nil {
+		log.Printf("Warning: failed to load global templates: %v", err)
+	}
+	
+	// Load templates from each app
+	for _, appName := range app.registry.GetAppNames() {
+		templateDir := filepath.Join("apps", appName, "templates")
+		if err := app.templates.LoadAppTemplates(appName, templateDir); err != nil {
+			log.Printf("Warning: failed to load templates for app '%s': %v", appName, err)
+		}
+	}
+	
+	return nil
+}
+
+// addBuiltinRoutes adds framework built-in routes
+func (app *Application) addBuiltinRoutes() {
+	engine := app.router.GetEngine()
+	
+	// Health check endpoint
+	engine.GET("/health", func(c *gin.Context) {
+		c.JSON(200, gin.H{
+			"status": "ok",
+			"app":    app.name,
+		})
+	})
+	
+	// Root welcome page
+	engine.GET("/", func(c *gin.Context) {
+		apps := app.registry.GetAppNames()
+		routes := app.router.GetRoutes()
+		
+		// Try to render template, fall back to basic HTML
+		if app.templates.Has("index.html") {
+			html, err := app.templates.Render("index.html", gin.H{
+				"AppName":    app.name,
+				"Apps":       apps,
+				"Routes":     routes,
+				"RouteCount": len(routes),
+			})
+			if err == nil {
+				c.Header("Content-Type", "text/html")
+				c.String(200, html)
+				return
+			}
+		}
+		
+		// Fallback HTML response
+		c.Header("Content-Type", "text/html")
+		html := fmt.Sprintf(`<!DOCTYPE html>
+<html>
+<head>
+    <title>%s</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 2rem; }
+        .apps { margin-top: 1rem; }
+        .routes { margin-top: 1rem; font-size: 0.9em; color: #666; }
+    </style>
+</head>
+<body>
+    <h1>Welcome to %s</h1>
+    <p>Your Gojango application is running successfully!</p>
+    <div class="apps">
+        <h2>Registered Apps (%d)</h2>
+        <ul>`, app.name, app.name, len(apps))
+        
+		for _, appName := range apps {
+			html += fmt.Sprintf("<li><a href=\"/%s/\">%s</a></li>", appName, appName)
+		}
+		
+		html += fmt.Sprintf(`</ul>
+    </div>
+    <div class="routes">
+        <p>%d total routes registered</p>
+        <p><a href="/health">Health Check</a></p>
+    </div>
+</body>
+</html>`, len(routes))
+		
+		c.String(200, html)
+	})
+}
+
+// setupStaticFiles configures static file serving
+func (app *Application) setupStaticFiles() {
+	engine := app.router.GetEngine()
+	
+	// Serve global static files
+	engine.Static("/static", "./static")
+	
+	// Serve app-specific static files
+	for _, appName := range app.registry.GetAppNames() {
+		staticPath := filepath.Join("apps", appName, "static")
+		if _, err := os.Stat(staticPath); err == nil {
+			engine.Static("/"+appName+"/static", staticPath)
+		}
+	}
+}
+
+// setupHTTPServer sets up the HTTP server with Gin
+func (app *Application) setupHTTPServer() error {
 	app.server = &http.Server{
 		Addr:    ":" + app.port,
-		Handler: mux,
+		Handler: app.router,
 	}
 	
 	return nil

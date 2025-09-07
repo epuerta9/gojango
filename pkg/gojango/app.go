@@ -6,6 +6,8 @@ package gojango
 
 import (
 	"context"
+	
+	"github.com/gin-gonic/gin"
 )
 
 // App is the core interface that all Gojango applications must implement.
@@ -16,6 +18,14 @@ type App interface {
 
 	// Initialize is called during application startup to set up the app
 	Initialize(ctx *AppContext) error
+}
+
+// Route represents an HTTP route definition
+type Route struct {
+	Method  string
+	Path    string
+	Handler gin.HandlerFunc // Gin handler function
+	Name    string
 }
 
 // Optional interfaces that apps can implement for additional functionality
@@ -101,13 +111,6 @@ func (b *BaseApp) Initialize(ctx *AppContext) error {
 	return nil
 }
 
-// Route represents an HTTP route definition
-type Route struct {
-	Method  string
-	Path    string
-	Handler interface{} // Will be gin.HandlerFunc in practice
-	Name    string
-}
 
 // Service represents a gRPC/Connect service
 type Service interface {

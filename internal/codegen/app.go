@@ -169,16 +169,31 @@ func (app *{{.NameTitle}}App) Routes() []gojango.Route {
 const viewsGoTemplate = `package {{.Package}}
 
 import (
-	"fmt"
 	"net/http"
+	
+	"github.com/gin-gonic/gin"
 )
 
 // IndexView handles the main page for this app
-func (app *{{.NameTitle}}App) IndexView(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "text/html")
-	fmt.Fprintf(w, "<h1>Welcome to {{.NameTitle}}</h1>")
-	fmt.Fprintf(w, "<p>This is the {{.Name}} app index page.</p>")
-	fmt.Fprintf(w, "<p>TODO: Implement your views here!</p>")
+func (app *{{.NameTitle}}App) IndexView(c *gin.Context) {
+	// Example of rendering a template (Phase 2)
+	// For now, return simple HTML
+	c.Header("Content-Type", "text/html")
+	html := ` + "`" + `<!DOCTYPE html>
+<html>
+<head>
+    <title>{{.NameTitle}}</title>
+    <style>body { font-family: Arial, sans-serif; margin: 2rem; }</style>
+</head>
+<body>
+    <h1>Welcome to {{.NameTitle}}</h1>
+    <p>This is the {{.Name}} app index page.</p>
+    <p>Built with Gojango - Django-like framework for Go!</p>
+    <p><a href="/">← Back to main page</a></p>
+</body>
+</html>` + "`" + `
+	
+	c.String(http.StatusOK, html)
 }
 
 // Add more view functions here
