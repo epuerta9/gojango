@@ -114,8 +114,7 @@ jobs:
         test -f apps/blog/views.go
         
         # Test with app imported (manual step for now)
-        echo '	_ "github.com/test/testproject/apps/blog"' >> main.go
-        sed -i 's|// Import your apps here.*|// Import your apps here (they register themselves via init())|' main.go
+        sed -i 's|// Import your apps here.*|// Import your apps here (they register themselves via init())\n\t_ "github.com/test/testproject/apps/blog"|' main.go
         
         # Verify app registration
         go run main.go apps | grep -q "blog"
