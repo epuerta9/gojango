@@ -2,7 +2,6 @@ package commands
 
 import (
 	"fmt"
-	"go/build"
 	"os"
 	"os/exec"
 	"runtime"
@@ -117,11 +116,6 @@ func checkGoVersion() bool {
 // checkGoModules verifies Go modules support
 func checkGoModules() bool {
 	ui.Info("Checking Go modules...")
-	
-	goPath := os.Getenv("GOPATH")
-	if goPath == "" {
-		goPath = build.Default.GOPATH
-	}
 	
 	ui.Success("  ✅ Go modules are supported")
 	

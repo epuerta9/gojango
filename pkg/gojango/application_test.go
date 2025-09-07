@@ -108,7 +108,9 @@ func TestApplicationCommands(t *testing.T) {
 	}
 	
 	settings := NewBasicSettings()
-	app.LoadSettings(settings)
+	if err := app.LoadSettings(settings); err != nil {
+		t.Fatalf("Failed to load settings: %v", err)
+	}
 
 	ctx := context.Background()
 
@@ -126,7 +128,9 @@ func TestApplicationCommands(t *testing.T) {
 		routes:   make(map[string][]Route),
 		services: make(map[string]Service),
 	}
-	app2.LoadSettings(settings)
+	if err := app2.LoadSettings(settings); err != nil {
+		t.Fatalf("Failed to load settings: %v", err)
+	}
 	testApp := &TestApp{name: "test"}
 	app2.registry.RegisterApp(testApp)
 	
@@ -155,7 +159,9 @@ func TestApplicationWithApps(t *testing.T) {
 	// Create settings
 	settings := NewBasicSettings()
 	settings.Set("DEBUG", true)
-	app.LoadSettings(settings)
+	if err := app.LoadSettings(settings); err != nil {
+		t.Fatalf("Failed to load settings: %v", err)
+	}
 
 	// Register multiple apps with dependencies
 	coreApp := &TestApp{name: "core"}

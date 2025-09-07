@@ -14,7 +14,7 @@ type VersionInfo struct {
 }
 
 // NewVersionCmd creates the 'version' command
-func NewVersionCmd(version string) *cobra.Command {
+func NewVersionCmd(version, commit, date string) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "version",
 		Short: "Show the Gojango version information",
@@ -24,6 +24,12 @@ This command shows the current version of the Gojango CLI tool and provides
 information about the framework version compatibility.`,
 		Run: func(cmd *cobra.Command, args []string) {
 			fmt.Printf("Gojango CLI version %s\n", version)
+			if commit != "unknown" {
+				fmt.Printf("Commit: %s\n", commit)
+			}
+			if date != "unknown" {
+				fmt.Printf("Built: %s\n", date)
+			}
 			fmt.Println("Framework: github.com/epuerta9/gojango")
 			fmt.Println("Documentation: https://github.com/epuerta9/gojango")
 			fmt.Println("Repository: https://github.com/epuerta9/gojango")

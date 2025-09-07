@@ -22,9 +22,7 @@ type ProjectConfig struct {
 }
 
 // ProjectGenerator generates new Gojango projects
-type ProjectGenerator struct {
-	templates *template.Template
-}
+type ProjectGenerator struct {}
 
 // NewProjectGenerator creates a new project generator
 func NewProjectGenerator() *ProjectGenerator {

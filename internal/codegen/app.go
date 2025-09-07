@@ -34,7 +34,6 @@ func (g *AppGenerator) Generate(config AppConfig) error {
 
 	// Load templates
 	tmpl := template.New("app").Funcs(template.FuncMap{
-		"Title": strings.Title,
 		"HasFeature": func(feature string) bool {
 			for _, f := range config.Features {
 				if f == feature {

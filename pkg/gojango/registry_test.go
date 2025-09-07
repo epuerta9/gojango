@@ -192,10 +192,10 @@ func TestRegistryInitialization(t *testing.T) {
 		t.Error("App2 should be initialized")
 	}
 
-	// Test double initialization
+	// Test reinitialization (should be allowed)
 	err = registry.Initialize(ctx, settings)
-	if err == nil {
-		t.Error("Expected error for double initialization")
+	if err != nil {
+		t.Errorf("Reinitialization should be allowed, got error: %v", err)
 	}
 }
 

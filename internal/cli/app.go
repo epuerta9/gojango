@@ -6,7 +6,7 @@ import (
 )
 
 // NewApp creates the root CLI application
-func NewApp(version string) *cobra.Command {
+func NewApp(version, commit, date string) *cobra.Command {
 	app := &cobra.Command{
 		Use:   "gojango",
 		Short: "The Django-like framework for Go",
@@ -34,7 +34,7 @@ with this command-line interface.`,
 	app.AddCommand(commands.NewProjectCmd())
 	app.AddCommand(commands.NewStartAppCmd())
 	app.AddCommand(commands.NewGenerateCmd())
-	app.AddCommand(commands.NewVersionCmd(version))
+	app.AddCommand(commands.NewVersionCmd(version, commit, date))
 	app.AddCommand(commands.NewDoctorCmd())
 
 	// Set custom help template

@@ -19,7 +19,7 @@ var (
 )
 
 func main() {
-	app := cli.NewApp(version)
+	app := cli.NewApp(version, commit, date)
 	
 	if err := app.Execute(); err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
