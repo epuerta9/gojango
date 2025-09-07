@@ -1,0 +1,26 @@
+// Package settings provides application-specific settings management
+package settings
+
+import (
+	"github.com/epuerta9/gojango/pkg/gojango"
+)
+
+// Load returns the configured settings for this application
+func Load() gojango.Settings {
+	settings := gojango.NewBasicSettings()
+	
+	// Load from environment variables
+	settings.LoadFromEnv()
+	
+	// Set application defaults
+	settings.Set("APP_NAME", "{{.Name}}")
+	settings.Set("MODULE", "{{.Module}}")
+	
+	// Frontend configuration
+	settings.Set("FRONTEND", "{{.Frontend}}")
+	
+	// Database configuration  
+	settings.Set("DATABASE", "{{.Database}}")
+	
+	return settings
+}

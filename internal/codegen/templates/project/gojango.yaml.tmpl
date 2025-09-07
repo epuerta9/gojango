@@ -1,0 +1,36 @@
+# Gojango project configuration
+name: {{.Name}}
+version: 1.0.0
+gojango_version: 0.1.0
+
+# Project metadata
+module: {{.Module}}
+description: "A Gojango web application"
+
+# Configuration
+frontend:
+  framework: {{.Frontend}}
+  
+database:
+  engine: {{.Database}}
+  
+features:
+{{- range .Features}}
+  - {{.}}
+{{- else}}
+  []
+{{- end}}
+
+# Apps will be auto-discovered from apps/ directory
+apps: []
+
+# Development settings
+development:
+  port: 8080
+  debug: true
+  reload: true
+  
+# Build settings  
+build:
+  binary_name: {{.Name}}
+  output_dir: bin/

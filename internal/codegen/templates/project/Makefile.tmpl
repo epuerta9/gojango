@@ -1,0 +1,102 @@
+# Makefile for {{.Name}}
+.PHONY: help run build test clean setup docker-up docker-down
+
+# Default target
+.DEFAULT_GOAL := help
+
+help: ## Show this help message
+	@echo "Available commands for {{.Name}}:"
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2}'
+
+# Development
+run: ## Run the development server
+	@echo "Starting {{.Name}} development server..."
+	go run main.go runserver
+
+build: ## Build the application
+	@echo "Building {{.Name}}..."
+	go build -o bin/{{.Name}} main.go
+
+test: ## Run tests
+	@echo "Running tests..."
+	go test ./...
+
+# Setup and dependencies
+setup: ## Setup development environment
+	@echo "Setting up development environment..."
+	@cp -n .env.example .env 2>/dev/null || echo ".env already exists"
+	@go mod tidy
+	@echo "✅ Setup complete!"
+	@echo ""
+	@echo "Next steps:"
+	@echo "  1. Edit .env file with your configuration"
+	{{- if eq .Database "postgres"}}
+	@echo "  2. Start PostgreSQL: make docker-up"
+	{{- else if eq .Database "mysql"}}
+	@echo "  2. Start MySQL: make docker-up"  
+	{{- end}}
+	@echo "  3. Run the server: make run"
+
+install: ## Install dependencies
+	@echo "Installing dependencies..."
+	go mod download
+	go mod tidy
+
+# Docker operations
+{{- if or (eq .Database "postgres") (eq .Database "mysql")}}
+docker-up: ## Start development services (database, etc.)
+	@echo "Starting development services..."
+	docker-compose up -d
+
+docker-down: ## Stop development services
+	@echo "Stopping development services..."
+	docker-compose down
+
+docker-logs: ## Show logs from development services
+	docker-compose logs -f
+{{- else}}
+docker-up: ## Start development services (not needed for SQLite)
+	@echo "SQLite doesn't require external services"
+
+docker-down: ## Stop development services (not needed for SQLite)
+	@echo "SQLite doesn't require external services"
+{{- end}}
+
+# Maintenance
+clean: ## Clean build artifacts
+	@echo "Cleaning up..."
+	rm -rf bin/
+	go clean -cache
+	go clean -testcache
+
+fmt: ## Format Go code
+	@echo "Formatting code..."
+	go fmt ./...
+
+lint: ## Run linters
+	@echo "Running linters..."
+	@if command -v golangci-lint >/dev/null 2>&1; then \
+		golangci-lint run; \
+	else \
+		echo "golangci-lint not installed. Install it from https://golangci-lint.run/"; \
+	fi
+
+# CLI Commands (will be available in Phase 2+)
+startapp: ## Create a new app (usage: make startapp name=myapp)
+	@if [ -z "$(name)" ]; then \
+		echo "Usage: make startapp name=myapp"; \
+		exit 1; \
+	fi
+	@echo "Creating app: $(name)"
+	gojango startapp $(name)
+
+# Project info
+info: ## Show project information
+	@echo "Project: {{.Name}}"
+	@echo "Module:  {{.Module}}"
+	@echo "Frontend: {{.Frontend}}"
+	@echo "Database: {{.Database}}"
+	@echo "Features: {{range $i, $f := .Features}}{{if $i}}, {{end}}{{$f}}{{end}}"
+	@echo ""
+	@echo "Commands:"
+	@go run main.go apps 2>/dev/null || echo "  No apps registered yet"

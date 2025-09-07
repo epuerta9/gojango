@@ -1,0 +1,135 @@
+# .goreleaser.yml
+version: 2
+project_name: gojango
+
+before:
+  hooks:
+    - go mod tidy
+    - go generate ./...
+
+builds:
+  - id: gojango
+    main: ./cmd/gojango
+    binary: gojango
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ignore:
+      - goos: windows
+        goarch: arm64
+    ldflags:
+      - -s -w -X main.version={{.Version}} -X main.commit={{.Commit}} -X main.date={{.Date}}
+
+archives:
+  - name_template: >-
+      {{ .ProjectName }}_
+      {{- title .Os }}_
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else if eq .Arch "386" }}i386
+      {{- else }}{{ .Arch }}{{ end }}
+      {{- if .Arm }}v{{ .Arm }}{{ end }}
+
+checksum:
+  name_template: 'checksums.txt'
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-next"
+
+changelog:
+  use: github
+  sort: asc
+  groups:
+    - title: 'New Features'
+      regexp: '^.*?feat(\([[:word:]]+\))??!?:.+$'
+      order: 0
+    - title: 'Bug Fixes'
+      regexp: '^.*?fix(\([[:word:]]+\))??!?:.+$'
+      order: 1
+    - title: 'Documentation'
+      regexp: '^.*?docs(\([[:word:]]+\))??!?:.+$'
+      order: 2
+    - title: 'Dependency Updates'
+      regexp: '^.*?chore\(deps\):.+$'
+      order: 3
+    - title: 'Other Changes'
+      order: 999
+  filters:
+    exclude:
+      - '^test:'
+      - '^ci:'
+      - Merge pull request
+      - Merge branch
+
+release:
+  github:
+    owner: epuerta9
+    name: gojango
+  draft: false
+  prerelease: auto
+  mode: append
+  header: |
+    ## Gojango Framework Release {{ .Tag }}
+    
+    The Django-like framework for Go developers 🚀
+    
+    **Phase 1 Features:**
+    - Complete project scaffolding with `gojango new`
+    - App-based architecture with `gojango startapp`
+    - Dependency resolution and lifecycle management
+    - Development tools and environment setup
+  footer: |
+    ## Quick Start
+    
+    ```bash
+    # One-liner install (Linux/macOS)
+    curl -fsSL https://raw.githubusercontent.com/epuerta9/gojango/main/install.sh | bash
+    
+    # Or download directly
+    wget -qO- https://github.com/epuerta9/gojango/releases/download/{{ .Tag }}/gojango_$(uname -s)_$(uname -m).tar.gz | tar xz && sudo mv gojango /usr/local/bin/
+    
+    # Create your first project
+    gojango new myblog
+    cd myblog
+    gojango startapp blog
+    make run
+    ```
+    
+    **Documentation**: https://github.com/epuerta9/gojango#readme
+    **Roadmap**: [ROADMAP.md](https://github.com/epuerta9/gojango/blob/main/ROADMAP.md)
+
+nfpms:
+  - id: packages
+    package_name: gojango
+    vendor: Esteban Puerta
+    homepage: https://github.com/epuerta9/gojango
+    maintainer: Esteban Puerta <epuer94@gmail.com>
+    description: The Django-like framework for Go developers
+    license: MIT
+    formats:
+      - deb
+      - rpm
+      - apk
+    recommends:
+      - git
+      - make
+      - docker
+
+# Homebrew tap (will be set up later)
+# brews:
+#   - name: gojango
+#     repository:
+#       owner: epuerta9
+#       name: homebrew-gojango
+#     homepage: https://github.com/epuerta9/gojango
+#     description: The Django-like framework for Go developers
+#     license: MIT
+#     install: |
+#       bin.install "gojango"
+#     test: |
+#       system "#{bin}/gojango version"

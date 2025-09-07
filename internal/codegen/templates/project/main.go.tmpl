@@ -1,0 +1,64 @@
+package main
+
+import (
+	"context"
+	"log"
+	"os"
+
+	"github.com/epuerta9/gojango/pkg/gojango"
+
+	// Import your apps here (they register themselves via init())
+	// Example: _ "{{.Module}}/apps/blog"
+)
+
+func main() {
+	// Create the Gojango application
+	app := gojango.New(
+		gojango.WithName("{{.Name}}"),
+		gojango.WithPort(getPort()),
+		gojango.WithDebug(isDebugMode()),
+	)
+
+	// Load settings
+	settings := gojango.NewBasicSettings()
+	settings.LoadFromEnv()
+	
+	// Set some defaults
+	settings.Set("PROJECT_NAME", "{{.Name}}")
+	settings.Set("MODULE", "{{.Module}}")
+	
+	if err := app.LoadSettings(settings); err != nil {
+		log.Fatalf("Failed to load settings: %v", err)
+	}
+
+	// Handle CLI commands or run server
+	ctx := context.Background()
+	
+	if len(os.Args) > 1 {
+		command := os.Args[1]
+		args := os.Args[2:]
+		
+		if err := app.RunCommand(ctx, command, args); err != nil {
+			log.Fatalf("Command failed: %v", err)
+		}
+	} else {
+		// Default to running the server
+		if err := app.Run(ctx); err != nil {
+			log.Fatalf("Application failed: %v", err)
+		}
+	}
+}
+
+// getPort returns the port from environment or default
+func getPort() string {
+	if port := os.Getenv("PORT"); port != "" {
+		return port
+	}
+	return "8080"
+}
+
+// isDebugMode returns true if debug mode is enabled
+func isDebugMode() bool {
+	debug := os.Getenv("DEBUG")
+	return debug == "1" || debug == "true"
+}

@@ -1,0 +1,125 @@
+version: '3.8'
+
+services:
+{{- if eq .Database "postgres"}}
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: {{.Name}}_dev
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  adminer:
+    image: adminer:latest
+    ports:
+      - "8081:8080"
+    depends_on:
+      - postgres
+    environment:
+      ADMINER_DEFAULT_SERVER: postgres
+
+{{- else if eq .Database "mysql"}}
+  mysql:
+    image: mysql:8.0
+    environment:
+      MYSQL_DATABASE: {{.Name}}_dev
+      MYSQL_USER: mysql
+      MYSQL_PASSWORD: mysql
+      MYSQL_ROOT_PASSWORD: root
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin:latest
+    ports:
+      - "8081:80"
+    depends_on:
+      - mysql
+    environment:
+      PMA_HOST: mysql
+      PMA_USER: root
+      PMA_PASSWORD: root
+
+{{- end}}
+{{- if or (has .Features "docker") (has .Features "redis")}}
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+{{- end}}
+{{- if has .Features "docker"}}
+  app:
+    build: .
+    ports:
+      - "8080:8080"
+    depends_on:
+{{- if eq .Database "postgres"}}
+      postgres:
+        condition: service_healthy
+{{- else if eq .Database "mysql"}}
+      mysql:
+        condition: service_healthy
+{{- end}}
+{{- if has .Features "redis"}}
+      redis:
+        condition: service_healthy
+{{- end}}
+    environment:
+      - DEBUG=1
+{{- if eq .Database "postgres"}}
+      - DATABASE_URL=postgres://postgres:postgres@postgres:5432/{{.Name}}_dev?sslmode=disable
+{{- else if eq .Database "mysql"}}
+      - DATABASE_URL=mysql://mysql:mysql@tcp(mysql:3306)/{{.Name}}_dev
+{{- else}}
+      - DATABASE_URL=sqlite3:///data/{{.Name}}.db
+{{- end}}
+{{- if has .Features "redis"}}
+      - REDIS_URL=redis://redis:6379
+{{- end}}
+    volumes:
+      - .:/app
+      - /app/bin  # Anonymous volume for build artifacts
+    working_dir: /app
+    command: ["make", "run"]
+
+{{- end}}
+
+volumes:
+{{- if eq .Database "postgres"}}
+  postgres_data:
+{{- else if eq .Database "mysql"}}
+  mysql_data:
+{{- end}}
+{{- if or (has .Features "docker") (has .Features "redis")}}
+  redis_data:
+{{- end}}
+
+networks:
+  default:
+    driver: bridge
