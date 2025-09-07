@@ -34,6 +34,7 @@ with this command-line interface.`,
 	app.AddCommand(commands.NewProjectCmd())
 	app.AddCommand(commands.NewStartAppCmd())
 	app.AddCommand(commands.NewGenerateCmd())
+	app.AddCommand(commands.NewDatabaseCmd())
 	app.AddCommand(commands.NewVersionCmd(version, commit, date))
 	app.AddCommand(commands.NewDoctorCmd())
 

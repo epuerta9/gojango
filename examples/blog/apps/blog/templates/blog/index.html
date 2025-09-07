@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{.title}} - Gojango Blog Example</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 2rem;
+            line-height: 1.6;
+            color: #333;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 3rem;
+            padding-bottom: 2rem;
+            border-bottom: 2px solid #e1e5e9;
+        }
+        .features {
+            background: #f8f9fa;
+            padding: 2rem;
+            border-radius: 8px;
+            margin: 2rem 0;
+        }
+        .features h3 {
+            margin-top: 0;
+            color: #495057;
+        }
+        .features ul {
+            list-style-type: none;
+            padding: 0;
+        }
+        .features li {
+            padding: 0.5rem 0;
+            padding-left: 1.5rem;
+            position: relative;
+        }
+        .features li::before {
+            content: "✓";
+            position: absolute;
+            left: 0;
+            color: #28a745;
+            font-weight: bold;
+        }
+        .nav-links {
+            text-align: center;
+            margin-top: 2rem;
+        }
+        .nav-links a {
+            display: inline-block;
+            margin: 0 1rem;
+            padding: 0.75rem 1.5rem;
+            background: #007bff;
+            color: white;
+            text-decoration: none;
+            border-radius: 4px;
+            transition: background-color 0.2s;
+        }
+        .nav-links a:hover {
+            background: #0056b3;
+        }
+        .code-block {
+            background: #f1f3f4;
+            padding: 1rem;
+            border-radius: 4px;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            margin: 1rem 0;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>{{.title}}</h1>
+        <p>{{.message}}</p>
+        <p><em>A demonstration of Gojango's Phase 3 Database Layer</em></p>
+    </div>
+
+    <div class="features">
+        <h3>Database Integration Features</h3>
+        <ul>
+            {{range .features}}
+            <li>{{.}}</li>
+            {{end}}
+        </ul>
+    </div>
+
+    <div class="section">
+        <h3>Getting Started</h3>
+        <p>This example demonstrates how to integrate databases into your Gojango application. The database layer supports:</p>
+        
+        <div class="code-block">
+// Database configuration
+config := db.PostgresConfig("localhost", "mydb", "user", "password")
+// or
+config := db.SQLiteConfig("./app.db")
+
+// Connection management
+conn, err := db.Open(config)
+migrator := db.NewMigrator(conn, "migrations")
+        </div>
+
+        <h3>Migration Management</h3>
+        <p>Use the CLI to manage your database schema:</p>
+        
+        <div class="code-block">
+# Create a new migration
+gojango db makemigration create_users
+
+# Apply pending migrations  
+gojango db migrate
+
+# Check migration status
+gojango db showmigrations
+
+# Rollback last migration
+gojango db rollback
+        </div>
+    </div>
+
+    <div class="nav-links">
+        <a href="/blog/posts">View Blog Posts</a>
+        <a href="/health">Health Check</a>
+        <a href="/">Back to Home</a>
+    </div>
+</body>
+</html>

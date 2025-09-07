@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{.title}} - Gojango Blog Example</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 2rem;
+            line-height: 1.6;
+            color: #333;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 2rem;
+            padding-bottom: 1rem;
+            border-bottom: 2px solid #e1e5e9;
+        }
+        .post {
+            background: #f8f9fa;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            border-radius: 8px;
+            border-left: 4px solid #007bff;
+        }
+        .post h3 {
+            margin-top: 0;
+            margin-bottom: 0.5rem;
+        }
+        .post h3 a {
+            color: #007bff;
+            text-decoration: none;
+        }
+        .post h3 a:hover {
+            text-decoration: underline;
+        }
+        .post-meta {
+            color: #6c757d;
+            font-size: 0.875rem;
+            margin-bottom: 1rem;
+        }
+        .post-content {
+            margin-bottom: 1rem;
+        }
+        .nav-links {
+            text-align: center;
+            margin-top: 2rem;
+        }
+        .nav-links a {
+            display: inline-block;
+            margin: 0 0.5rem;
+            padding: 0.5rem 1rem;
+            background: #6c757d;
+            color: white;
+            text-decoration: none;
+            border-radius: 4px;
+            font-size: 0.875rem;
+        }
+        .nav-links a:hover {
+            background: #545b62;
+        }
+        .no-posts {
+            text-align: center;
+            color: #6c757d;
+            font-style: italic;
+            padding: 3rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>{{.title}}</h1>
+        <p>Demonstrating database-driven content with Gojango</p>
+    </div>
+
+    <div class="posts">
+        {{if .posts}}
+            {{range .posts}}
+            <article class="post">
+                <h3><a href="/blog/posts/{{.id}}">{{.title}}</a></h3>
+                <div class="post-meta">
+                    Posted on {{.created_at}} • Post ID: {{.id}}
+                </div>
+                <div class="post-content">
+                    {{.content}}
+                </div>
+            </article>
+            {{end}}
+        {{else}}
+            <div class="no-posts">
+                <h3>No posts available</h3>
+                <p>This is where database-driven blog posts would appear.</p>
+                <p>In a real application, these would be loaded from your Ent models.</p>
+            </div>
+        {{end}}
+    </div>
+
+    <div class="nav-links">
+        <a href="/blog/">← Back to Blog Home</a>
+        <a href="/">← Back to App Home</a>
+    </div>
+
+    <div style="margin-top: 3rem; padding-top: 2rem; border-top: 1px solid #e1e5e9;">
+        <h4>Database Integration Notes</h4>
+        <p><strong>In a real application, you would:</strong></p>
+        <ul>
+            <li>Create Ent schema definitions for your Post model</li>
+            <li>Generate Ent client code with <code>go generate</code></li>
+            <li>Query posts using: <code>client.Post.Query().All(ctx)</code></li>
+            <li>Handle database transactions for create/update operations</li>
+            <li>Implement proper error handling and validation</li>
+        </ul>
+    </div>
+</body>
+</html>

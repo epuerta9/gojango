@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{.title}} - Gojango GJ Alias</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 2rem;
+            line-height: 1.6;
+            color: #333;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 3rem;
+            padding-bottom: 2rem;
+            border-bottom: 2px solid #007bff;
+        }
+        .alias-demo {
+            background: #f8f9fa;
+            padding: 2rem;
+            border-radius: 8px;
+            margin: 2rem 0;
+            border-left: 4px solid #28a745;
+        }
+        .code-comparison {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+            margin: 2rem 0;
+        }
+        .code-block {
+            background: #f1f3f4;
+            padding: 1rem;
+            border-radius: 4px;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 0.9rem;
+            overflow-x: auto;
+        }
+        .code-block.before {
+            border-left: 4px solid #dc3545;
+        }
+        .code-block.after {
+            border-left: 4px solid #28a745;
+        }
+        .features {
+            background: #fff3cd;
+            padding: 2rem;
+            border-radius: 8px;
+            margin: 2rem 0;
+            border-left: 4px solid #ffc107;
+        }
+        .features ul {
+            list-style-type: none;
+            padding: 0;
+        }
+        .features li {
+            padding: 0.5rem 0;
+            padding-left: 1.5rem;
+            position: relative;
+        }
+        .features li::before {
+            content: "✨";
+            position: absolute;
+            left: 0;
+        }
+        .nav-links {
+            text-align: center;
+            margin-top: 3rem;
+        }
+        .nav-links a {
+            display: inline-block;
+            margin: 0 0.5rem;
+            padding: 0.75rem 1.5rem;
+            background: #007bff;
+            color: white;
+            text-decoration: none;
+            border-radius: 4px;
+            transition: background-color 0.2s;
+        }
+        .nav-links a:hover {
+            background: #0056b3;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>{{.title}}</h1>
+        <p>{{.message}}</p>
+        <p><em>Demonstrating the <code>gj</code> alias package for cleaner imports</em></p>
+    </div>
+
+    <div class="alias-demo">
+        <h3>🎯 Import Alias Comparison</h3>
+        <p>The <code>gj</code> package provides a convenient alias for all Gojango functionality:</p>
+        
+        <div class="code-comparison">
+            <div>
+                <h4>❌ Before (verbose)</h4>
+                <div class="code-block before">
+import "github.com/epuerta9/gojango/pkg/gojango"
+import "github.com/epuerta9/gojango/pkg/gojango/db"
+
+app := gojango.New(
+    gojango.WithName("myapp"),
+    gojango.WithDebug(true),
+)
+
+config := db.SQLiteConfig("app.db")
+conn, err := db.Open(config)
+settings := gojango.NewBasicSettings()
+                </div>
+            </div>
+            
+            <div>
+                <h4>✅ After (clean)</h4>
+                <div class="code-block after">
+import gj "github.com/epuerta9/gojango"
+
+app := gj.New(
+    gj.WithName("myapp"),
+    gj.WithDebug(true),
+)
+
+config := gj.SQLiteConfig("app.db")
+conn, err := gj.Open(config)
+settings := gj.NewBasicSettings()
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="features">
+        <h3>🚀 GJ Alias Features</h3>
+        <ul>
+            {{range .features}}
+            <li>{{.}}</li>
+            {{end}}
+        </ul>
+    </div>
+
+    <div class="section">
+        <h3>📚 Complete API Coverage</h3>
+        <p>The <code>gj</code> alias provides access to all Gojango functionality:</p>
+        
+        <div class="code-block">
+// Core Application
+app := gj.New(gj.WithName("myapp"), gj.WithDebug(true))
+settings := gj.NewBasicSettings()
+registry := gj.GetRegistry()
+
+// Database Layer
+config := gj.PostgresConfig("localhost", "db", "user", "pass")
+conn, err := gj.Open(config)
+migrator := gj.NewMigrator(conn, "migrations")
+
+// Middleware
+middleware := gj.GetDefaults()
+cors := gj.CORS()
+logger := gj.Logger()
+
+// Routing & Templates
+router := gj.NewRouter()
+engine := gj.NewEngine()
+        </div>
+    </div>
+
+    <div class="nav-links">
+        <a href="/example/about">About JSON</a>
+        <a href="/example/api/status">API Status</a>
+        <a href="/health">Health Check</a>
+        <a href="/">Framework Home</a>
+    </div>
+
+    <div style="margin-top: 3rem; padding-top: 2rem; border-top: 1px solid #e1e5e9; text-align: center; color: #6c757d;">
+        <p><strong>Gojango v0.2.0</strong> - Django-like framework for Go with database integration</p>
+        <p>The <code>gj</code> alias makes imports cleaner and more Django-like! 🎉</p>
+    </div>
+</body>
+</html>

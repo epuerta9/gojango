@@ -14,6 +14,7 @@ import (
 	"github.com/epuerta9/gojango/pkg/gojango/middleware"
 	"github.com/epuerta9/gojango/pkg/gojango/routing"
 	"github.com/epuerta9/gojango/pkg/gojango/templates"
+	"github.com/epuerta9/gojango/pkg/gojango/version"
 	"github.com/gin-gonic/gin"
 )
 
@@ -353,7 +354,7 @@ func (app *Application) RunCommand(ctx context.Context, command string, args []s
 		if err := app.Initialize(ctx); err != nil {
 			return fmt.Errorf("failed to initialize application: %w", err)
 		}
-		fmt.Println("Gojango application version 0.1.1")
+		fmt.Println(version.Get().AppString())
 		return nil
 	case "apps":
 		// Initialize only for commands that need it
