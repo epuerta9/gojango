@@ -353,7 +353,7 @@ func (app *Application) RunCommand(ctx context.Context, command string, args []s
 		if err := app.Initialize(ctx); err != nil {
 			return fmt.Errorf("failed to initialize application: %w", err)
 		}
-		fmt.Println("Gojango application version 0.1.0")
+		fmt.Println("Gojango application version 0.1.1")
 		return nil
 	case "apps":
 		// Initialize only for commands that need it
