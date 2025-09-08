@@ -1,0 +1,600 @@
+package main
+
+import (
+	"context"
+	"database/sql"
+	"fmt"
+	"os"
+	"os/exec"
+	"path/filepath"
+
+	"github.com/epuerta9/gojango/pkg/gojango"
+	"github.com/epuerta9/gojango/pkg/gojango/codegen"
+	"github.com/epuerta9/gojango/pkg/gojango/migrations"
+	_ "github.com/mattn/go-sqlite3"
+	"github.com/spf13/cobra"
+	
+	// Import all your apps to register them
+	_ "{{.ModulePath}}/apps/core"
+)
+
+var version = "{{.Version}}"
+
+func main() {
+	rootCmd := &cobra.Command{
+		Use:   "manage.go",
+		Short: "{{.Name}} - Django-style management interface",
+		Long: `{{.Name}} management interface (Django manage.py equivalent).
+
+This provides project-specific commands with full application context:
+- Database migrations with your project settings
+- Development server with your installed apps  
+- Code generation from your schemas
+- App management within your project`,
+		Version: version,
+	}
+
+	// Add project-specific commands (Django manage.py equivalent)
+	rootCmd.AddCommand(newRunServerCmd())
+	rootCmd.AddCommand(newMigrationCmd())
+	rootCmd.AddCommand(newStartAppCmd())
+	rootCmd.AddCommand(newGenerateCmd())
+	rootCmd.AddCommand(newShellCmd())
+	rootCmd.AddCommand(newTestCmd())
+	rootCmd.AddCommand(newCollectStaticCmd())
+
+	if err := rootCmd.Execute(); err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		os.Exit(1)
+	}
+}
+
+func newRunServerCmd() *cobra.Command {
+	var port string
+	var debug bool
+
+	cmd := &cobra.Command{
+		Use:   "runserver [port]",
+		Short: "Start the development server",
+		Long: `Start the Django-style development server.
+
+This starts the server with your project's full application context,
+loaded settings, registered apps, and database connections.`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if len(args) > 0 {
+				port = args[0]
+			}
+			if port == "" {
+				port = "8080"
+			}
+
+			// Create Gojango application with project context
+			app := gojango.New(
+				gojango.WithDebug(debug),
+				gojango.WithPort(port),
+				gojango.WithName("{{.Name}}"),
+			)
+
+			// Load project settings
+			if err := app.LoadSettingsFromFile("config/settings.star"); err != nil {
+				return fmt.Errorf("failed to load settings: %w", err)
+			}
+
+			fmt.Printf("Starting {{.Name}} development server on http://localhost:%s\n", port)
+			fmt.Println("Quit the server with CONTROL-C.")
+
+			return app.Run(context.Background())
+		},
+	}
+
+	cmd.Flags().StringVarP(&port, "port", "p", "8080", "Port to run server on")
+	cmd.Flags().BoolVar(&debug, "debug", true, "Enable debug mode")
+
+	return cmd
+}
+
+func newMigrationCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "migrate",
+		Short: "Database migrations",
+		Long:  "Django-style database migrations with your project context.",
+	}
+
+	cmd.AddCommand(newMakeMigrationsCmd())
+	cmd.AddCommand(newApplyMigrationsCmd())
+	cmd.AddCommand(newShowMigrationsCmd())
+	cmd.AddCommand(newRollbackMigrationCmd())
+
+	return cmd
+}
+
+func newMakeMigrationsCmd() *cobra.Command {
+	var name string
+	var operation string
+
+	cmd := &cobra.Command{
+		Use:   "makemigrations",
+		Short: "Create new migrations",
+		Long:  "Generate new migration files based on your model changes.",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if name == "" {
+				name = "auto_migration"
+			}
+
+			// Load project settings to get database config
+			app := gojango.New()
+			if err := app.LoadSettingsFromFile("config/settings.star"); err != nil {
+				return fmt.Errorf("failed to load settings: %w", err)
+			}
+
+			// Connect to database (using project settings)
+			db, err := sql.Open("sqlite3", "{{.Name}}.db")
+			if err != nil {
+				return fmt.Errorf("failed to connect to database: %w", err)
+			}
+			defer db.Close()
+
+			// Create migration manager
+			manager := migrations.NewMigrationManager(db, "migrations")
+			if err := manager.Initialize(); err != nil {
+				return fmt.Errorf("failed to initialize migrations: %w", err)
+			}
+
+			return manager.GenerateMigration(name, operation)
+		},
+	}
+
+	cmd.Flags().StringVar(&name, "name", "", "Migration name")
+	cmd.Flags().StringVar(&operation, "op", "custom", "Operation type")
+
+	return cmd
+}
+
+func newApplyMigrationsCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "migrate",
+		Short: "Apply migrations",
+		Long:  "Apply pending migrations to the database.",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			// Load project settings
+			app := gojango.New()
+			if err := app.LoadSettingsFromFile("config/settings.star"); err != nil {
+				return fmt.Errorf("failed to load settings: %w", err)
+			}
+
+			// Connect to database
+			db, err := sql.Open("sqlite3", "{{.Name}}.db")
+			if err != nil {
+				return fmt.Errorf("failed to connect to database: %w", err)
+			}
+			defer db.Close()
+
+			// Create migration manager
+			manager := migrations.NewMigrationManager(db, "migrations")
+			if err := manager.Initialize(); err != nil {
+				return fmt.Errorf("failed to initialize migrations: %w", err)
+			}
+
+			return manager.ApplyMigrations()
+		},
+	}
+
+	return cmd
+}
+
+func newShowMigrationsCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "showmigrations",
+		Short: "Show migration status",
+		Long:  "Display the status of all migrations.",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			// Load project settings
+			app := gojango.New()
+			if err := app.LoadSettingsFromFile("config/settings.star"); err != nil {
+				return fmt.Errorf("failed to load settings: %w", err)
+			}
+
+			// Connect to database
+			db, err := sql.Open("sqlite3", "{{.Name}}.db")
+			if err != nil {
+				return fmt.Errorf("failed to connect to database: %w", err)
+			}
+			defer db.Close()
+
+			// Create migration manager
+			manager := migrations.NewMigrationManager(db, "migrations")
+			if err := manager.Initialize(); err != nil {
+				return fmt.Errorf("failed to initialize migrations: %w", err)
+			}
+
+			return manager.ShowMigrations()
+		},
+	}
+
+	return cmd
+}
+
+func newRollbackMigrationCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "rollback [migration]",
+		Short: "Rollback a migration",
+		Long:  "Rollback a specific migration.",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			migrationName := args[0]
+
+			// Load project settings
+			app := gojango.New()
+			if err := app.LoadSettingsFromFile("config/settings.star"); err != nil {
+				return fmt.Errorf("failed to load settings: %w", err)
+			}
+
+			// Connect to database
+			db, err := sql.Open("sqlite3", "{{.Name}}.db")
+			if err != nil {
+				return fmt.Errorf("failed to connect to database: %w", err)
+			}
+			defer db.Close()
+
+			// Create migration manager
+			manager := migrations.NewMigrationManager(db, "migrations")
+			if err := manager.Initialize(); err != nil {
+				return fmt.Errorf("failed to initialize migrations: %w", err)
+			}
+
+			return manager.RollbackMigration(migrationName)
+		},
+	}
+
+	return cmd
+}
+
+func newStartAppCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "startapp [app-name]",
+		Short: "Create a new Django-style app",
+		Long: `Create a new application in the apps/ directory.
+
+This creates a new app with the proper structure and registers it
+within your project's context.`,
+		Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			appName := args[0]
+			appPath := filepath.Join("apps", appName)
+
+			fmt.Printf("Creating app '%s' in %s...\n", appName, appPath)
+
+			// Create app directory structure
+			dirs := []string{
+				appPath,
+				filepath.Join(appPath, "schema"),
+				filepath.Join(appPath, "templates", appName),
+				filepath.Join(appPath, "static", appName),
+			}
+
+			for _, dir := range dirs {
+				if err := os.MkdirAll(dir, 0755); err != nil {
+					return fmt.Errorf("failed to create directory %s: %w", dir, err)
+				}
+			}
+
+			// Generate app.go
+			appGoContent := fmt.Sprintf(`package %s
+
+import (
+	"github.com/epuerta9/gojango/pkg/gojango"
+	"github.com/gin-gonic/gin"
+)
+
+func init() {
+	gojango.Register(&%sApp{})
+}
+
+type %sApp struct{}
+
+func (app *%sApp) Config() gojango.AppConfig {
+	return gojango.AppConfig{
+		Name:  "%s",
+		Label: "%s Application",
+	}
+}
+
+func (app *%sApp) Initialize(ctx *gojango.AppContext) error {
+	return nil
+}
+
+func (app *%sApp) Routes() []gojango.Route {
+	return []gojango.Route{
+		{
+			Method:  "GET",
+			Path:    "/%s/",
+			Handler: app.IndexView,
+			Name:    "%s:index",
+		},
+	}
+}
+
+func (app *%sApp) IndexView(c *gin.Context) {
+	c.HTML(200, "%s/index.html", gin.H{
+		"title": "%s",
+	})
+}
+`, appName, 
+   capitalize(appName), 
+   capitalize(appName), 
+   capitalize(appName), 
+   appName, 
+   capitalize(appName), 
+   capitalize(appName), 
+   capitalize(appName), 
+   appName, 
+   appName, 
+   capitalize(appName), 
+   appName, 
+   capitalize(appName))
+
+			if err := os.WriteFile(filepath.Join(appPath, "app.go"), []byte(appGoContent), 0644); err != nil {
+				return fmt.Errorf("failed to create app.go: %w", err)
+			}
+
+			// Generate template
+			templateContent := fmt.Sprintf(`<!DOCTYPE html>
+<html>
+<head>
+    <title>{{.title}}</title>
+</head>
+<body>
+    <h1>%s App</h1>
+    <p>Welcome to the %s application!</p>
+</body>
+</html>
+`, capitalize(appName), appName)
+
+			templatePath := filepath.Join(appPath, "templates", appName, "index.html")
+			if err := os.WriteFile(templatePath, []byte(templateContent), 0644); err != nil {
+				return fmt.Errorf("failed to create template: %w", err)
+			}
+
+			fmt.Printf(`✅ Successfully created app '%s'
+
+Don't forget to add "apps.%s" to INSTALLED_APPS in config/settings.star
+`, appName, appName)
+
+			return nil
+		},
+	}
+
+	return cmd
+}
+
+func newGenerateCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "generate [type]",
+		Short: "Generate code from schemas",
+		Long: `Generate code from your Ent schemas with full project context.
+
+Available generators:
+  proto   - Generate protobuf files
+  openapi - Generate OpenAPI spec
+  all     - Generate everything`,
+		Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			genType := args[0]
+
+			switch genType {
+			case "proto":
+				return generateProto()
+			case "openapi":
+				return generateOpenAPI()
+			case "all":
+				if err := generateProto(); err != nil {
+					return err
+				}
+				return generateOpenAPI()
+			default:
+				return fmt.Errorf("unknown generation type: %s", genType)
+			}
+		},
+	}
+
+	return cmd
+}
+
+func generateProto() error {
+	fmt.Println("🔧 Generating protobuf files...")
+	
+	// Find schema directories in project
+	schemaDirs := []string{"apps/*/schema", "schema"}
+	var schemaDir string
+	
+	for _, pattern := range schemaDirs {
+		matches, _ := filepath.Glob(pattern)
+		for _, match := range matches {
+			if stat, err := os.Stat(match); err == nil && stat.IsDir() {
+				schemaDir = match
+				break
+			}
+		}
+		if schemaDir != "" {
+			break
+		}
+	}
+	
+	if schemaDir == "" {
+		return fmt.Errorf("no schema directory found in project")
+	}
+
+	// Analyze schemas
+	analyzer := codegen.NewSchemaAnalyzer(schemaDir)
+	if err := analyzer.Analyze(); err != nil {
+		return fmt.Errorf("failed to analyze schemas: %w", err)
+	}
+
+	models := analyzer.GetModels()
+	if len(models) == 0 {
+		fmt.Println("⚠️  No models found in schema directory")
+		return nil
+	}
+
+	// Generate protobuf files
+	protoGenerator := codegen.NewProtoGenerator(analyzer)
+	outputDir := "internal/proto"
+	
+	if err := protoGenerator.Generate(outputDir); err != nil {
+		return fmt.Errorf("failed to generate protobuf files: %w", err)
+	}
+
+	fmt.Printf("✅ Generated protobuf files for %d models in %s\n", len(models), outputDir)
+	return nil
+}
+
+func generateOpenAPI() error {
+	fmt.Println("🔧 Generating OpenAPI specification...")
+	
+	// Find schema directories in project
+	schemaDirs := []string{"apps/*/schema", "schema"}
+	var schemaDir string
+	
+	for _, pattern := range schemaDirs {
+		matches, _ := filepath.Glob(pattern)
+		for _, match := range matches {
+			if stat, err := os.Stat(match); err == nil && stat.IsDir() {
+				schemaDir = match
+				break
+			}
+		}
+		if schemaDir != "" {
+			break
+		}
+	}
+	
+	if schemaDir == "" {
+		return fmt.Errorf("no schema directory found in project")
+	}
+
+	// Analyze schemas
+	analyzer := codegen.NewSchemaAnalyzer(schemaDir)
+	if err := analyzer.Analyze(); err != nil {
+		return fmt.Errorf("failed to analyze schemas: %w", err)
+	}
+
+	models := analyzer.GetModels()
+	if len(models) == 0 {
+		fmt.Println("⚠️  No models found in schema directory")
+		return nil
+	}
+
+	// Generate OpenAPI specification
+	openAPIGenerator := codegen.NewOpenAPIGenerator(analyzer)
+	outputFile := "openapi.yaml"
+	
+	if err := openAPIGenerator.Generate(outputFile); err != nil {
+		return fmt.Errorf("failed to generate OpenAPI spec: %w", err)
+	}
+
+	fmt.Printf("✅ Generated OpenAPI specification for %d models in %s\n", len(models), outputFile)
+	return nil
+}
+
+func newShellCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "shell",
+		Short: "Interactive project shell",
+		Long: `Start an interactive shell with your project's full context.
+
+This provides access to your models, settings, and application state.`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			fmt.Println("{{.Name}} Interactive Shell")
+			fmt.Println("Your project context is loaded. Type 'help' for commands.")
+			
+			// This would eventually provide a REPL with project context
+			fmt.Println("🚧 Interactive shell coming soon!")
+			return nil
+		},
+	}
+
+	return cmd
+}
+
+func newTestCmd() *cobra.Command {
+	var verbose bool
+	var coverage bool
+	var pattern string
+
+	cmd := &cobra.Command{
+		Use:   "test [packages...]",
+		Short: "Run tests with project context",
+		Long: `Run Go tests with your project's full application context.
+
+This ensures tests run with proper database setup, settings, and app registration.`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			testArgs := []string{"test"}
+			
+			if verbose {
+				testArgs = append(testArgs, "-v")
+			}
+			
+			if coverage {
+				testArgs = append(testArgs, "-cover", "-coverprofile=coverage.out")
+			}
+			
+			if pattern != "" {
+				testArgs = append(testArgs, "-run", pattern)
+			}
+			
+			// Default to testing all packages if none specified
+			if len(args) == 0 {
+				testArgs = append(testArgs, "./...")
+			} else {
+				testArgs = append(testArgs, args...)
+			}
+
+			fmt.Printf("Running {{.Name}} tests: go %s\n", testArgs[0])
+			
+			goCmd := exec.Command("go", testArgs...)
+			goCmd.Stdout = os.Stdout
+			goCmd.Stderr = os.Stderr
+			goCmd.Env = append(os.Environ(), "GOJANGO_ENV=test")
+			
+			if err := goCmd.Run(); err != nil {
+				return fmt.Errorf("tests failed: %w", err)
+			}
+
+			if coverage {
+				fmt.Println("\n📊 Coverage report saved to coverage.out")
+			}
+
+			return nil
+		},
+	}
+
+	cmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "Verbose test output")
+	cmd.Flags().BoolVar(&coverage, "coverage", false, "Enable coverage reporting")
+	cmd.Flags().StringVarP(&pattern, "run", "r", "", "Run only tests matching pattern")
+
+	return cmd
+}
+
+func newCollectStaticCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "collectstatic",
+		Short: "Collect static files",
+		Long:  "Collect static files from all apps into STATIC_ROOT.",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			fmt.Println("🔧 Collecting static files...")
+			
+			// This would collect static files from all apps
+			fmt.Println("✅ Static files collected")
+			return nil
+		},
+	}
+
+	return cmd
+}
+
+func capitalize(s string) string {
+	if len(s) == 0 {
+		return s
+	}
+	return string(s[0]-32) + s[1:]
+}

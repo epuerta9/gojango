@@ -1,0 +1,250 @@
+syntax = "proto3";
+
+package gojango.admin;
+
+import "google/protobuf/any.proto";
+import "google/protobuf/struct.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/epuerta9/gojango/pkg/gojango/admin/proto";
+
+// Admin service for Django-style model management
+service AdminService {
+  // Model introspection
+  rpc ListModels(ListModelsRequest) returns (ListModelsResponse);
+  rpc GetModelSchema(GetModelSchemaRequest) returns (GetModelSchemaResponse);
+  
+  // CRUD operations
+  rpc ListObjects(ListObjectsRequest) returns (ListObjectsResponse);
+  rpc GetObject(GetObjectRequest) returns (GetObjectResponse);
+  rpc CreateObject(CreateObjectRequest) returns (CreateObjectResponse);
+  rpc UpdateObject(UpdateObjectRequest) returns (UpdateObjectResponse);
+  rpc DeleteObject(DeleteObjectRequest) returns (DeleteObjectResponse);
+  rpc DeleteObjects(DeleteObjectsRequest) returns (DeleteObjectsResponse);
+  
+  // Admin actions
+  rpc ExecuteAction(ExecuteActionRequest) returns (ExecuteActionResponse);
+  rpc ListActions(ListActionsRequest) returns (ListActionsResponse);
+  
+  // Search and filtering
+  rpc SearchObjects(SearchObjectsRequest) returns (SearchObjectsResponse);
+}
+
+// Model metadata
+message ModelInfo {
+  string app = 1;
+  string name = 2;
+  string verbose_name = 3;
+  string verbose_name_plural = 4;
+  repeated string list_display = 5;
+  repeated string search_fields = 6;
+  repeated string list_filter = 7;
+  repeated string readonly_fields = 8;
+  repeated string exclude = 9;
+  ModelPermissions permissions = 10;
+  repeated AdminAction actions = 11;
+  int32 list_per_page = 12;
+  string ordering = 13;
+  bool show_full_result_count = 14;
+}
+
+message ModelPermissions {
+  bool add = 1;
+  bool change = 2;
+  bool delete = 3;
+  bool view = 4;
+}
+
+message AdminAction {
+  string name = 1;
+  string description = 2;
+  bool confirmation_required = 3;
+  repeated string permissions = 4;
+}
+
+// Field metadata for forms and display
+message FieldInfo {
+  string name = 1;
+  string field_type = 2;
+  string verbose_name = 3;
+  string help_text = 4;
+  bool required = 5;
+  bool editable = 6;
+  bool blank = 7;
+  bool null = 8;
+  google.protobuf.Any default_value = 9;
+  repeated string choices = 10;
+  int32 max_length = 11;
+  bool unique = 12;
+  string related_model = 13;
+  string widget_type = 14;
+}
+
+// Requests and responses
+message ListModelsRequest {}
+
+message ListModelsResponse {
+  map<string, ModelInfo> models = 1;
+  SiteInfo site = 2;
+}
+
+message SiteInfo {
+  string name = 1;
+  string header_title = 2;
+  string index_title = 3;
+}
+
+message GetModelSchemaRequest {
+  string app = 1;
+  string model = 2;
+}
+
+message GetModelSchemaResponse {
+  ModelInfo model_info = 1;
+  repeated FieldInfo fields = 2;
+}
+
+message ListObjectsRequest {
+  string app = 1;
+  string model = 2;
+  int32 page = 3;
+  int32 page_size = 4;
+  string ordering = 5;
+  map<string, string> filters = 6;
+  string search = 7;
+}
+
+message ListObjectsResponse {
+  repeated ObjectData objects = 1;
+  int32 total_count = 2;
+  int32 page = 3;
+  int32 page_size = 4;
+  bool has_next = 5;
+  bool has_previous = 6;
+  int32 total_pages = 7;
+  repeated string display_fields = 8;
+}
+
+message ObjectData {
+  string id = 1;
+  map<string, google.protobuf.Value> fields = 2;
+  string str_representation = 3;
+  google.protobuf.Timestamp created_at = 4;
+  google.protobuf.Timestamp updated_at = 5;
+}
+
+message GetObjectRequest {
+  string app = 1;
+  string model = 2;
+  string id = 3;
+}
+
+message GetObjectResponse {
+  ObjectData object = 1;
+  repeated FieldInfo form_fields = 2;
+}
+
+message CreateObjectRequest {
+  string app = 1;
+  string model = 2;
+  map<string, google.protobuf.Value> data = 3;
+}
+
+message CreateObjectResponse {
+  ObjectData object = 1;
+  repeated ValidationError errors = 2;
+  bool success = 3;
+}
+
+message UpdateObjectRequest {
+  string app = 1;
+  string model = 2;
+  string id = 3;
+  map<string, google.protobuf.Value> data = 4;
+}
+
+message UpdateObjectResponse {
+  ObjectData object = 1;
+  repeated ValidationError errors = 2;
+  bool success = 3;
+}
+
+message DeleteObjectRequest {
+  string app = 1;
+  string model = 2;
+  string id = 3;
+}
+
+message DeleteObjectResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message DeleteObjectsRequest {
+  string app = 1;
+  string model = 2;
+  repeated string ids = 3;
+}
+
+message DeleteObjectsResponse {
+  int32 deleted_count = 1;
+  repeated string failed_ids = 2;
+  bool success = 3;
+  string message = 4;
+}
+
+message ExecuteActionRequest {
+  string app = 1;
+  string model = 2;
+  string action = 3;
+  repeated string object_ids = 4;
+  map<string, google.protobuf.Value> parameters = 5;
+}
+
+message ExecuteActionResponse {
+  bool success = 1;
+  string message = 2;
+  int32 affected_count = 3;
+  repeated ValidationError errors = 4;
+}
+
+message ListActionsRequest {
+  string app = 1;
+  string model = 2;
+}
+
+message ListActionsResponse {
+  repeated AdminAction actions = 1;
+}
+
+message SearchObjectsRequest {
+  string app = 1;
+  string model = 2;
+  string query = 3;
+  int32 limit = 4;
+}
+
+message SearchObjectsResponse {
+  repeated ObjectData objects = 1;
+  int32 total_count = 2;
+}
+
+message ValidationError {
+  string field = 1;
+  string message = 2;
+  string code = 3;
+}
+
+// Filter types for advanced filtering
+message FilterOption {
+  string name = 1;
+  string value = 2;
+  int32 count = 3;
+}
+
+message FilterSpec {
+  string field = 1;
+  string lookup_type = 2;
+  string title = 3;
+  repeated FilterOption options = 4;
+}

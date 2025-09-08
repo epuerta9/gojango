@@ -1,0 +1,394 @@
+package admin
+
+import (
+	"context"
+	"fmt"
+	"net/http"
+	"strconv"
+	"strings"
+
+	"connectrpc.com/connect"
+	adminv1 "github.com/epuerta9/gojango/pkg/gojango/admin/proto/adminv1"
+	"github.com/epuerta9/gojango/pkg/gojango/admin/proto/adminv1/adminv1connect"
+	"github.com/gin-gonic/gin"
+	"google.golang.org/protobuf/types/known/structpb"
+	"google.golang.org/protobuf/types/known/anypb"
+)
+
+// GRPCServer implements the admin gRPC service
+type GRPCServer struct {
+	site *Site
+}
+
+// NewGRPCServer creates a new admin gRPC server
+func NewGRPCServer(site *Site) *GRPCServer {
+	return &GRPCServer{
+		site: site,
+	}
+}
+
+// SetupGRPCRoutes sets up the gRPC-Web routes using Connect
+func (s *Site) SetupGRPCRoutes(router gin.IRouter) {
+	grpcServer := NewGRPCServer(s)
+	
+	// Create Connect handler
+	path, handler := adminv1connect.NewAdminServiceHandler(grpcServer)
+	
+	// Mount the Connect handler on the admin group
+	adminGroup := router.Group("/admin")
+	adminGroup.Any(path+"/*action", gin.WrapH(handler))
+}
+
+// GetModels returns all registered models
+func (s *GRPCServer) GetModels(ctx context.Context, req *connect.Request[adminv1.GetModelsRequest]) (*connect.Response[adminv1.GetModelsResponse], error) {
+	models := make(map[string]*adminv1.Model)
+	
+	s.site.mu.RLock()
+	for name, admin := range s.site.models {
+		parts := strings.Split(name, ".")
+		app := "main"
+		model := name
+		if len(parts) == 2 {
+			app = parts[0]
+			model = parts[1]
+		}
+		
+		actions := make([]*adminv1.Action, 0, len(admin.actions))
+		for actionName, action := range admin.actions {
+			actions = append(actions, &adminv1.Action{
+				Name:        actionName,
+				Description: action.Description,
+			})
+		}
+		
+		models[name] = &adminv1.Model{
+			Name:               model,
+			App:                app,
+			VerboseName:        admin.verboseName,
+			VerboseNamePlural:  admin.verboseNamePlural,
+			ListDisplay:        admin.listDisplay,
+			ListFilter:         admin.listFilter,
+			SearchFields:       admin.searchFields,
+			Actions:            actions,
+			Permissions: &adminv1.ModelPermissions{
+				CanAdd:    true,
+				CanChange: true,
+				CanDelete: true,
+				CanView:   true,
+			},
+		}
+	}
+	s.site.mu.RUnlock()
+	
+	resp := &adminv1.GetModelsResponse{
+		Models: models,
+		Site: &adminv1.SiteInfo{
+			Name:        s.site.name,
+			HeaderTitle: s.site.headerTitle,
+			IndexTitle:  s.site.indexTitle,
+		},
+	}
+	
+	return connect.NewResponse(resp), nil
+}
+
+// GetModelSchema returns the schema for a specific model
+func (s *GRPCServer) GetModelSchema(ctx context.Context, req *connect.Request[adminv1.GetModelSchemaRequest]) (*connect.Response[adminv1.GetModelSchemaResponse], error) {
+	modelKey := fmt.Sprintf("%s.%s", req.Msg.App, req.Msg.Model)
+	
+	admin, exists := s.site.GetModelAdmin(modelKey)
+	if !exists {
+		return nil, connect.NewError(connect.CodeNotFound, fmt.Errorf("model not found: %s", modelKey))
+	}
+	
+	schema := admin.GetSchema()
+	
+	// Convert to protobuf schema
+	protoFields := make([]*adminv1.FieldSchema, len(schema.Fields))
+	for i, field := range schema.Fields {
+		choices := make([]*adminv1.Choice, len(field.Choices))
+		for j, choice := range field.Choices {
+			value, _ := anypb.New(structpb.NewStringValue(fmt.Sprintf("%v", choice.Value)))
+			choices[j] = &adminv1.Choice{
+				Value:   value,
+				Display: choice.Display,
+			}
+		}
+		
+		var defaultValue *anypb.Any
+		if field.Default != nil {
+			defaultValue, _ = anypb.New(structpb.NewStringValue(fmt.Sprintf("%v", field.Default)))
+		}
+		
+		protoFields[i] = &adminv1.FieldSchema{
+			Name:        field.Name,
+			Type:        field.Type,
+			Required:    field.Required,
+			Unique:      field.Unique,
+			Choices:     choices,
+			DefaultValue: defaultValue,
+			HelpText:    field.HelpText,
+			VerboseName: field.Verbose,
+		}
+		
+		if field.MaxLength != nil {
+			protoFields[i].MaxLength = &[]int32{int32(*field.MaxLength)}[0]
+		}
+	}
+	
+	protoRelations := make([]*adminv1.RelationSchema, len(schema.Relations))
+	for i, rel := range schema.Relations {
+		protoRelations[i] = &adminv1.RelationSchema{
+			Name:         rel.Name,
+			Type:         rel.Type,
+			RelatedModel: rel.RelatedModel,
+			RelatedName:  rel.RelatedName,
+		}
+	}
+	
+	resp := &adminv1.GetModelSchemaResponse{
+		Schema: &adminv1.ModelSchema{
+			Fields:    protoFields,
+			Relations: protoRelations,
+		},
+	}
+	
+	return connect.NewResponse(resp), nil
+}
+
+// ListObjects returns a paginated list of objects for a model
+func (s *GRPCServer) ListObjects(ctx context.Context, req *connect.Request[adminv1.ListObjectsRequest]) (*connect.Response[adminv1.ListObjectsResponse], error) {
+	modelKey := fmt.Sprintf("%s.%s", req.Msg.App, req.Msg.Model)
+	
+	admin, exists := s.site.GetModelAdmin(modelKey)
+	if !exists {
+		return nil, connect.NewError(connect.CodeNotFound, fmt.Errorf("model not found: %s", modelKey))
+	}
+	
+	// Create a mock gin context for the admin interface
+	// In a real implementation, you'd extract the actual context
+	ginCtx := &gin.Context{}
+	
+	// Convert request to query values
+	query := make(map[string][]string)
+	if req.Msg.Page > 0 {
+		query["page"] = []string{strconv.Itoa(int(req.Msg.Page))}
+	}
+	if req.Msg.PerPage > 0 {
+		query["per_page"] = []string{strconv.Itoa(int(req.Msg.PerPage))}
+	}
+	if req.Msg.Query != "" {
+		query["q"] = []string{req.Msg.Query}
+	}
+	for key, value := range req.Msg.Filters {
+		query["filter_"+key] = []string{value}
+	}
+	
+	// Get list data
+	listData, err := admin.GetAPIData(ginCtx, query)
+	if err != nil {
+		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("failed to get list data: %w", err))
+	}
+	
+	// Convert to protobuf response
+	resp := &adminv1.ListObjectsResponse{}
+	
+	// Handle the response data structure
+	if data, ok := listData.(map[string]interface{}); ok {
+		if results, ok := data["results"].([]interface{}); ok {
+			objects := make([]*structpb.Struct, len(results))
+			for i, result := range results {
+				if obj, err := structpb.NewStruct(result.(map[string]interface{})); err == nil {
+					objects[i] = obj
+				}
+			}
+			resp.Objects = objects
+		}
+		
+		if count, ok := data["count"].(int); ok {
+			resp.Total = int32(count)
+		}
+		if page, ok := data["page"].(int); ok {
+			resp.Page = int32(page)
+		}
+		if perPage, ok := data["per_page"].(int); ok {
+			resp.PerPage = int32(perPage)
+		}
+		if numPages, ok := data["num_pages"].(int); ok {
+			resp.NumPages = int32(numPages)
+		}
+		if hasNext, ok := data["has_next"].(bool); ok {
+			resp.HasNext = hasNext
+		}
+		if hasPrev, ok := data["has_prev"].(bool); ok {
+			resp.HasPrev = hasPrev
+		}
+		if query, ok := data["query"].(string); ok {
+			resp.Query = query
+		}
+	}
+	
+	return connect.NewResponse(resp), nil
+}
+
+// GetObject returns a specific object by ID
+func (s *GRPCServer) GetObject(ctx context.Context, req *connect.Request[adminv1.GetObjectRequest]) (*connect.Response[adminv1.GetObjectResponse], error) {
+	modelKey := fmt.Sprintf("%s.%s", req.Msg.App, req.Msg.Model)
+	
+	admin, exists := s.site.GetModelAdmin(modelKey)
+	if !exists {
+		return nil, connect.NewError(connect.CodeNotFound, fmt.Errorf("model not found: %s", modelKey))
+	}
+	
+	ginCtx := &gin.Context{}
+	obj, err := admin.GetObject(ginCtx, req.Msg.Id)
+	if err != nil {
+		return nil, connect.NewError(connect.CodeNotFound, fmt.Errorf("object not found: %w", err))
+	}
+	
+	objStruct, err := structpb.NewStruct(obj.(map[string]interface{}))
+	if err != nil {
+		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("failed to convert object: %w", err))
+	}
+	
+	resp := &adminv1.GetObjectResponse{
+		Object: objStruct,
+	}
+	
+	return connect.NewResponse(resp), nil
+}
+
+// CreateObject creates a new object
+func (s *GRPCServer) CreateObject(ctx context.Context, req *connect.Request[adminv1.CreateObjectRequest]) (*connect.Response[adminv1.CreateObjectResponse], error) {
+	modelKey := fmt.Sprintf("%s.%s", req.Msg.App, req.Msg.Model)
+	
+	admin, exists := s.site.GetModelAdmin(modelKey)
+	if !exists {
+		return nil, connect.NewError(connect.CodeNotFound, fmt.Errorf("model not found: %s", modelKey))
+	}
+	
+	// Convert protobuf struct to Go map
+	data := req.Msg.Data.AsMap()
+	
+	// Create HTTP request
+	httpReq, _ := http.NewRequest("POST", "", nil)
+	
+	ginCtx := &gin.Context{Request: httpReq}
+	obj, err := admin.CreateObject(ginCtx, httpReq)
+	if err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("failed to create object: %w", err))
+	}
+	
+	objStruct, err := structpb.NewStruct(obj.(map[string]interface{}))
+	if err != nil {
+		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("failed to convert object: %w", err))
+	}
+	
+	resp := &adminv1.CreateObjectResponse{
+		Object: objStruct,
+	}
+	
+	return connect.NewResponse(resp), nil
+}
+
+// UpdateObject updates an existing object
+func (s *GRPCServer) UpdateObject(ctx context.Context, req *connect.Request[adminv1.UpdateObjectRequest]) (*connect.Response[adminv1.UpdateObjectResponse], error) {
+	modelKey := fmt.Sprintf("%s.%s", req.Msg.App, req.Msg.Model)
+	
+	admin, exists := s.site.GetModelAdmin(modelKey)
+	if !exists {
+		return nil, connect.NewError(connect.CodeNotFound, fmt.Errorf("model not found: %s", modelKey))
+	}
+	
+	// Create HTTP request
+	httpReq, _ := http.NewRequest("PUT", "", nil)
+	
+	ginCtx := &gin.Context{Request: httpReq}
+	obj, err := admin.UpdateObject(ginCtx, req.Msg.Id, httpReq)
+	if err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("failed to update object: %w", err))
+	}
+	
+	objStruct, err := structpb.NewStruct(obj.(map[string]interface{}))
+	if err != nil {
+		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("failed to convert object: %w", err))
+	}
+	
+	resp := &adminv1.UpdateObjectResponse{
+		Object: objStruct,
+	}
+	
+	return connect.NewResponse(resp), nil
+}
+
+// DeleteObject deletes an object
+func (s *GRPCServer) DeleteObject(ctx context.Context, req *connect.Request[adminv1.DeleteObjectRequest]) (*connect.Response[adminv1.DeleteObjectResponse], error) {
+	modelKey := fmt.Sprintf("%s.%s", req.Msg.App, req.Msg.Model)
+	
+	admin, exists := s.site.GetModelAdmin(modelKey)
+	if !exists {
+		return nil, connect.NewError(connect.CodeNotFound, fmt.Errorf("model not found: %s", modelKey))
+	}
+	
+	ginCtx := &gin.Context{}
+	err := admin.DeleteObject(ginCtx, req.Msg.Id)
+	if err != nil {
+		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("failed to delete object: %w", err))
+	}
+	
+	resp := &adminv1.DeleteObjectResponse{
+		Success: true,
+	}
+	
+	return connect.NewResponse(resp), nil
+}
+
+// ExecuteAction executes a bulk action
+func (s *GRPCServer) ExecuteAction(ctx context.Context, req *connect.Request[adminv1.ExecuteActionRequest]) (*connect.Response[adminv1.ExecuteActionResponse], error) {
+	modelKey := fmt.Sprintf("%s.%s", req.Msg.App, req.Msg.Model)
+	
+	admin, exists := s.site.GetModelAdmin(modelKey)
+	if !exists {
+		return nil, connect.NewError(connect.CodeNotFound, fmt.Errorf("model not found: %s", modelKey))
+	}
+	
+	// Get selected objects
+	var objects []interface{}
+	ginCtx := &gin.Context{}
+	
+	for _, id := range req.Msg.SelectedIds {
+		obj, err := admin.GetObject(ginCtx, id)
+		if err != nil {
+			return nil, connect.NewError(connect.CodeNotFound, fmt.Errorf("failed to get object %s: %w", id, err))
+		}
+		objects = append(objects, obj)
+	}
+	
+	// Execute action
+	httpReq, _ := http.NewRequest("POST", "", nil)
+	ginCtx.Request = httpReq
+	
+	result, err := admin.ExecuteBulkAction(ginCtx, httpReq)
+	if err != nil {
+		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("failed to execute action: %w", err))
+	}
+	
+	resp := &adminv1.ExecuteActionResponse{
+		Success: true,
+	}
+	
+	// Handle result
+	if resultMap, ok := result.(map[string]interface{}); ok {
+		if message, ok := resultMap["message"].(string); ok {
+			resp.Message = message
+		}
+		if count, ok := resultMap["count"].(int); ok {
+			resp.Count = int32(count)
+		}
+		if errors, ok := resultMap["errors"].([]string); ok {
+			resp.Errors = errors
+		}
+	}
+	
+	return connect.NewResponse(resp), nil
+}

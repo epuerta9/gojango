@@ -10,6 +10,32 @@
 bin/
 dist/
 
+# Go binaries (main executables)
+/gojango
+/admin-example
+*/admin-example
+**/admin-example
+
+# Example binaries and databases
+examples/*/admin-example
+examples/*/*-example  
+examples/*/*.db
+examples/*/admin_example.db
+*.sqlite3
+*.db
+admin_example.db
+
+# Generated Ent files
+ent/
+enttest/
+
+# Frontend build artifacts
+templates/dist/
+**/templates/dist/
+frontend/dist/
+**/frontend/dist/
+node_modules/
+
 # Test binary, built with `go test -c`
 *.test
 

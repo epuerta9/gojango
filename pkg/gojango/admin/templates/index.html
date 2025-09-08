@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/admin/static/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{{.headerTitle | default "Gojango Admin"}}</title>
+    <meta name="description" content="Gojango Administration Interface" />
+    
+    <!-- Preload Inter font -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    
+    <!-- Development mode CSS and JS -->
+    {{if .isDevelopment}}
+      <script type="module" src="http://localhost:3000/@vite/client"></script>
+      <script type="module" src="http://localhost:3000/src/main.tsx"></script>
+    {{else}}
+      <!-- Production mode assets -->
+      <link rel="stylesheet" href="/admin/static/assets/index.css" />
+    {{end}}
+  </head>
+  <body>
+    <div id="root"></div>
+    
+    <!-- Global configuration for the React app -->
+    <script>
+      window.GOJANGO_ADMIN_CONFIG = {
+        baseUrl: '/admin',
+        site: {
+          name: "{{.site.name | default "admin"}}",
+          headerTitle: "{{.site.headerTitle | default "Gojango Administration"}}",
+          indexTitle: "{{.site.indexTitle | default "Site Administration"}}"
+        },
+        user: {{.user | default "null"}},
+        csrf: "{{.csrfToken | default ""}}",
+        version: "{{.version | default "0.2.0"}}"
+      };
+    </script>
+    
+    {{if not .isDevelopment}}
+      <!-- Production mode JS -->
+      <script type="module" src="/admin/static/assets/index.js"></script>
+    {{end}}
+  </body>
+</html>

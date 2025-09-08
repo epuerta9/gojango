@@ -1,0 +1,224 @@
+syntax = "proto3";
+
+package admin.v1;
+
+import "google/protobuf/any.proto";
+import "google/protobuf/struct.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/epuerta9/gojango/pkg/gojango/admin/proto/adminv1";
+
+// AdminService provides CRUD operations for admin models
+service AdminService {
+  // GetModels returns all registered models
+  rpc GetModels(GetModelsRequest) returns (GetModelsResponse);
+  
+  // GetModelSchema returns the schema for a specific model
+  rpc GetModelSchema(GetModelSchemaRequest) returns (GetModelSchemaResponse);
+  
+  // ListObjects returns a paginated list of objects for a model
+  rpc ListObjects(ListObjectsRequest) returns (ListObjectsResponse);
+  
+  // GetObject returns a specific object by ID
+  rpc GetObject(GetObjectRequest) returns (GetObjectResponse);
+  
+  // CreateObject creates a new object
+  rpc CreateObject(CreateObjectRequest) returns (CreateObjectResponse);
+  
+  // UpdateObject updates an existing object
+  rpc UpdateObject(UpdateObjectRequest) returns (UpdateObjectResponse);
+  
+  // DeleteObject deletes an object
+  rpc DeleteObject(DeleteObjectRequest) returns (DeleteObjectResponse);
+  
+  // ExecuteAction executes a bulk action
+  rpc ExecuteAction(ExecuteActionRequest) returns (ExecuteActionResponse);
+}
+
+// Model represents a registered admin model
+message Model {
+  string name = 1;
+  string app = 2;
+  string verbose_name = 3;
+  string verbose_name_plural = 4;
+  repeated string list_display = 5;
+  repeated string list_filter = 6;
+  repeated string search_fields = 7;
+  repeated Action actions = 8;
+  ModelPermissions permissions = 9;
+}
+
+// ModelPermissions represents permissions for a model
+message ModelPermissions {
+  bool can_add = 1;
+  bool can_change = 2;
+  bool can_delete = 3;
+  bool can_view = 4;
+}
+
+// ModelSchema represents the schema for a model
+message ModelSchema {
+  repeated FieldSchema fields = 1;
+  repeated RelationSchema relations = 2;
+}
+
+// FieldSchema represents a database field
+message FieldSchema {
+  string name = 1;
+  string type = 2;
+  bool required = 3;
+  bool unique = 4;
+  optional int32 max_length = 5;
+  repeated Choice choices = 6;
+  google.protobuf.Any default_value = 7;
+  string help_text = 8;
+  string verbose_name = 9;
+  WidgetConfig widget = 10;
+}
+
+// RelationSchema represents a database relation
+message RelationSchema {
+  string name = 1;
+  string type = 2;
+  string related_model = 3;
+  string related_name = 4;
+}
+
+// Choice represents a field choice
+message Choice {
+  google.protobuf.Any value = 1;
+  string display = 2;
+  string group = 3;
+}
+
+// WidgetConfig represents a form widget configuration
+message WidgetConfig {
+  string type = 1;
+  map<string, google.protobuf.Any> attributes = 2;
+  repeated Choice choices = 3;
+  map<string, google.protobuf.Any> config = 4;
+  bool required = 5;
+  string help_text = 6;
+  string label = 7;
+}
+
+// Action represents a bulk action
+message Action {
+  string name = 1;
+  string description = 2;
+  bool requires_confirmation = 3;
+  string confirmation_message = 4;
+  string icon = 5;
+  string css_class = 6;
+}
+
+// Filter represents a list filter
+message Filter {
+  string name = 1;
+  string title = 2;
+  WidgetConfig widget = 3;
+  bool is_active = 4;
+  google.protobuf.Any active_value = 5;
+}
+
+// Request/Response messages
+
+message GetModelsRequest {}
+
+message GetModelsResponse {
+  map<string, Model> models = 1;
+  SiteInfo site = 2;
+}
+
+message SiteInfo {
+  string name = 1;
+  string header_title = 2;
+  string index_title = 3;
+}
+
+message GetModelSchemaRequest {
+  string app = 1;
+  string model = 2;
+}
+
+message GetModelSchemaResponse {
+  ModelSchema schema = 1;
+}
+
+message ListObjectsRequest {
+  string app = 1;
+  string model = 2;
+  int32 page = 3;
+  int32 per_page = 4;
+  string query = 5;
+  map<string, string> filters = 6;
+  repeated string ordering = 7;
+}
+
+message ListObjectsResponse {
+  repeated google.protobuf.Struct objects = 1;
+  int32 total = 2;
+  int32 page = 3;
+  int32 per_page = 4;
+  int32 num_pages = 5;
+  bool has_next = 6;
+  bool has_prev = 7;
+  repeated Filter filters = 8;
+  string query = 9;
+}
+
+message GetObjectRequest {
+  string app = 1;
+  string model = 2;
+  string id = 3;
+}
+
+message GetObjectResponse {
+  google.protobuf.Struct object = 1;
+}
+
+message CreateObjectRequest {
+  string app = 1;
+  string model = 2;
+  google.protobuf.Struct data = 3;
+}
+
+message CreateObjectResponse {
+  google.protobuf.Struct object = 1;
+}
+
+message UpdateObjectRequest {
+  string app = 1;
+  string model = 2;
+  string id = 3;
+  google.protobuf.Struct data = 4;
+}
+
+message UpdateObjectResponse {
+  google.protobuf.Struct object = 1;
+}
+
+message DeleteObjectRequest {
+  string app = 1;
+  string model = 2;
+  string id = 3;
+}
+
+message DeleteObjectResponse {
+  bool success = 1;
+}
+
+message ExecuteActionRequest {
+  string app = 1;
+  string model = 2;
+  string action = 3;
+  repeated string selected_ids = 4;
+}
+
+message ExecuteActionResponse {
+  bool success = 1;
+  string message = 2;
+  int32 count = 3;
+  repeated string errors = 4;
+  google.protobuf.Any data = 5;
+}

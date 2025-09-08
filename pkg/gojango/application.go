@@ -116,6 +116,11 @@ func (app *Application) AddGinMiddleware(handler gin.HandlerFunc) {
 	app.middleware.AddGin(handler)
 }
 
+// GetRouter returns the underlying Gin router engine
+func (app *Application) GetRouter() *gin.Engine {
+	return app.router.GetEngine()
+}
+
 // Initialize initializes all registered apps
 func (app *Application) Initialize(ctx context.Context) error {
 	if app.settings == nil {
