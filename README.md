@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="logo.png" alt="Gojango Logo" width="200" height="200">
+  <img src="logo.jpeg" alt="Gojango Logo" width="200" height="200">
   
   # Gojango 🎸
   
